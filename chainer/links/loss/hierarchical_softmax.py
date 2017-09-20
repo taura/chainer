@@ -8,6 +8,9 @@ from chainer import function
 from chainer import link
 from chainer.utils import type_check
 
+tau_opt=1
+if tau_opt:
+    import tau_ext
 
 class TreeParser(object):
 
@@ -123,6 +126,21 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         self.begins = cuda.to_cpu(self.begins)
 
     def forward_cpu(self, inputs):
+        if tau_opt:
+            n = self.forward_cpu_new(inputs)
+            #o = self.forward_cpu_org(inputs)
+            #err = abs((n[0] - o[0]) / o[0])
+            #assert(err < 1.0e-4), (err, o, n)
+            return n
+        else:
+            return self.forward_cpu_org(inputs)
+        
+    def forward_cpu_new(self, inputs):
+        x, t, W = inputs
+        return tau_ext.BinaryHierarchicalSoftmaxFunction_forward_cpu(x, t, W,
+                                                                     self.begins, self.paths, self.codes)
+        
+    def forward_cpu_org(self, inputs):
         x, t, W = inputs
 
         loss = numpy.float32(0.0)
