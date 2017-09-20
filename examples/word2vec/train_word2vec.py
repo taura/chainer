@@ -53,6 +53,9 @@ parser.add_argument('--out-type', '-o', choices=['hsm', 'ns', 'original'],
 parser.add_argument('--out', default='result',
                     help='Directory to output the result')
 parser.add_argument('--test', dest='test', action='store_true')
+if tau_prof:
+    parser.add_argument('--seed', '-s', default=918729, type=int,
+                        help='random seed')
 parser.set_defaults(test=False)
 
 args = parser.parse_args()
@@ -61,6 +64,9 @@ if args.gpu >= 0:
     chainer.cuda.get_device(args.gpu).use()
     cuda.check_cuda_available()
 
+if tau_prof:
+    np.random.seed(args.seed)
+    
 print('GPU: {}'.format(args.gpu))
 print('# unit: {}'.format(args.unit))
 print('Window: {}'.format(args.window))
