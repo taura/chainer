@@ -11,6 +11,7 @@ from chainer.utils import type_check
 tau_opt=1
 if tau_opt:
     import tau_ext
+    import _ctau
 
 class TreeParser(object):
 
@@ -137,8 +138,26 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         
     def forward_cpu_new(self, inputs):
         x, t, W = inputs
-        return tau_ext.BinaryHierarchicalSoftmaxFunction_forward_cpu(x, t, W,
-                                                                     self.begins, self.paths, self.codes)
+        begins = self.begins
+        paths = self.paths
+        codes = self.codes
+        M,N = x.shape
+        P,_ = W.shape
+        bn, = begins.shape
+        pn, = paths.shape
+        assert(t.shape == (M,)), (t.shape, x.shape)
+        assert(W.shape == (P,N)), (W.shape, x.shape)
+        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(x.dtype == numpy.float32), x.dtype
+        assert(t.dtype == numpy.int32), t.dtype
+        assert(W.dtype == numpy.float32), W.dtype
+        assert(begins.dtype == numpy.int32), begins.dtype
+        assert(paths.dtype == numpy.int32), paths.dtype
+        assert(codes.dtype == numpy.float32), codes.dtype
+        # _ctaumodule.c:ctau_binary_hierarchical_softmax_function_forward_cpu_wrap
+        f = _ctau.binary_hierarchical_softmax_function_forward_cpu
+        l = f(x, t, W, begins, paths, codes, M, N, P, bn, pn)
+        return numpy.array([l]),
         
     def forward_cpu_org(self, inputs):
         x, t, W = inputs
@@ -158,6 +177,115 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         return numpy.sum(loss)
 
     def backward_cpu(self, inputs, grad_outputs):
+        if tau_opt:
+            gx_n,none_n,gW_n = self.backward_cpu_new(inputs, grad_outputs)
+            #gx_o,none_o,gW_o = self.backward_cpu_org(inputs, grad_outputs)
+            #x_err = ((gx_n - gx_o)**2).sum()
+            #assert(x_err <= 1.0e-10 * (gx_o**2).sum()), x_err
+            #W_err = ((gW_n - gW_o)**2).sum()
+            #assert(W_err <= 1.0e-10 * (gW_o**2).sum()), W_err
+            return gx_n,none_n,gW_n
+        else:
+            return self.backward_cpu_org(inputs, grad_outputs)
+
+    def backward_cpu_new_(self, inputs, grad_outputs):
+        x, t, W = inputs
+        gloss, = grad_outputs
+        begins = self.begins
+        paths = self.paths
+        codes = self.codes
+        gx = numpy.empty_like(x)
+        gW = numpy.zeros_like(W)
+        M,N = x.shape
+        P,_ = W.shape
+        bn, = begins.shape
+        pn, = paths.shape
+        assert(t.shape == (M,)), (t.shape, x.shape)
+        assert(W.shape == (P,N)), (W.shape, x.shape)
+        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(x.dtype == numpy.float32), x.dtype
+        assert(t.dtype == numpy.int32), t.dtype
+        assert(W.dtype == numpy.float32), W.dtype
+        assert(begins.dtype == numpy.int32), begins.dtype
+        assert(paths.dtype == numpy.int32), paths.dtype
+        assert(codes.dtype == numpy.float32), codes.dtype
+        for i in range(M):
+            it = t[i]           # scalar
+            begin = self.begins[it] # scalar
+            end = self.begins[it + 1] # scalar
+            path = self.paths[begin:end] # 1D array (end-begin) elems
+            w = W[path]                  # 2D array (end-begin, N)
+            wxy = w.dot(x[i]) * self.codes[begin:end] # 1D array (end-begin) elems
+            g = -gloss * self.codes[begin:end] / (1.0 + numpy.exp(wxy)) # 1D array (end-begin) elems
+            gx_ = g.dot(w)      # 1D N elems
+            gw = g.reshape((end - begin, 1)).dot(x[i].reshape(1, N)) # (end-begin, N)
+            gW[path] += gw      # (end-begin, N)
+            gx[i] = gx_         # 1D N
+        return gx, None, gW
+
+    def backward_cpu_new_(self, inputs, grad_outputs):
+        x, t, W = inputs
+        gloss, = grad_outputs
+        begins = self.begins
+        paths = self.paths
+        codes = self.codes
+        gx = numpy.zeros_like(x)
+        gW = numpy.zeros_like(W)
+        M,N = x.shape
+        P,_ = W.shape
+        bn, = begins.shape
+        pn, = paths.shape
+        assert(t.shape == (M,)), (t.shape, x.shape)
+        assert(W.shape == (P,N)), (W.shape, x.shape)
+        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(x.dtype == numpy.float32), x.dtype
+        assert(t.dtype == numpy.int32), t.dtype
+        assert(W.dtype == numpy.float32), W.dtype
+        assert(begins.dtype == numpy.int32), begins.dtype
+        assert(paths.dtype == numpy.int32), paths.dtype
+        assert(codes.dtype == numpy.float32), codes.dtype
+        gl = gloss[0]
+        for i in range(M):
+            it = t[i]           # scalar
+            begin = begins[it] # scalar
+            end = begins[it + 1] # scalar
+            for k in range(begin, end):
+                p = paths[k] # 1D array 1 elems
+                w = W[p]                  # 1D N
+                wxy = w.dot(x[i]) * codes[k] # scalar
+                g = -gl * codes[k] / (1.0 + numpy.exp(wxy)) # scalar
+                gW[p] += g * x[i] # 1D N
+                gx[i] += g * w    # 1D N
+        return gx, None, gW
+    
+    def backward_cpu_new(self, inputs, grad_outputs):
+        x, t, W = inputs
+        gloss, = grad_outputs
+        begins = self.begins
+        paths = self.paths
+        codes = self.codes
+        gx = numpy.zeros_like(x)
+        gW = numpy.zeros_like(W)
+        M,N = x.shape
+        P,_ = W.shape
+        bn, = begins.shape
+        pn, = paths.shape
+        assert(t.shape == (M,)), (t.shape, x.shape)
+        assert(W.shape == (P,N)), (W.shape, x.shape)
+        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(x.dtype == numpy.float32), x.dtype
+        assert(t.dtype == numpy.int32), t.dtype
+        assert(W.dtype == numpy.float32), W.dtype
+        assert(begins.dtype == numpy.int32), begins.dtype
+        assert(paths.dtype == numpy.int32), paths.dtype
+        assert(codes.dtype == numpy.float32), codes.dtype
+        gl = gloss[0]
+        # _ctaumodule.c:ctau_binary_hierarchical_softmax_function_backward_cpu_wrap
+        f = _ctau.binary_hierarchical_softmax_function_backward_cpu
+        f(x, t, W, gx, gW, begins, paths, codes, gl, M, N, P, bn, pn)
+        return gx, None, gW
+    
+    def backward_cpu_org(self, inputs, grad_outputs):
         x, t, W = inputs
         gloss, = grad_outputs
         gx = numpy.empty_like(x)

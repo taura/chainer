@@ -15,7 +15,6 @@ if tau_prof:
     import sys,os
     sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
     print("be sore to set LD_LIBRARY_PATH to ~/.chainer/lib")
-    # os.environ["LD_LIBRARY_PATH"] = "/home/tau/.chainer/lib:"
 
 import chainer
 from chainer import cuda
