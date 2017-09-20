@@ -1,5 +1,11 @@
+#!/usr/bin/env python3
 from __future__ import print_function
 import argparse
+
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
 
 import chainer
 import chainer.links as L
@@ -20,6 +26,9 @@ def main():
                         help='Number of images in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=300,
                         help='Number of sweeps over the dataset to train')
+    if tau_prof:
+        parser.add_argument('--iteration', '-i', type=int, default=20,
+                            help='Number of iterations to train')
     parser.add_argument('--gpu', '-g', type=int, default=0,
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--out', '-o', default='result',
@@ -31,6 +40,8 @@ def main():
     print('GPU: {}'.format(args.gpu))
     print('# Minibatch-size: {}'.format(args.batchsize))
     print('# epoch: {}'.format(args.epoch))
+    if tau_prof:
+        print('# iterations: {}'.format(args.iteration))
     print('')
 
     # Set up a neural network to train.
@@ -60,7 +71,10 @@ def main():
                                                  repeat=False, shuffle=False)
     # Set up a trainer
     updater = training.StandardUpdater(train_iter, optimizer, device=args.gpu)
-    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
+    if tau_prof:
+        trainer = training.Trainer(updater, (args.iteration, 'iteration'), out=args.out)
+    else:
+        trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
     # Evaluate the model with the test dataset for each epoch
     trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
@@ -97,6 +111,8 @@ def main():
 
     # Run the training
     trainer.run()
+    if tau_prof:
+        chainer.variable.show_prof()
 
 
 if __name__ == '__main__':

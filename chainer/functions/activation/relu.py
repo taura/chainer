@@ -1,5 +1,7 @@
 import numpy
 
+tau_prof=1
+
 import chainer
 from chainer import cuda
 from chainer import mkld
@@ -101,5 +103,9 @@ def relu(x):
     else:
         if chainer.mkld.available and \
            chainer.should_use_mkldnn('>=auto'):
-            print('WARNING, relu inputs is not mdarray ', x.rank, type(x.data))
+            if tau_prof:
+                # we see too many warnings below for cifar
+                pass
+            else:
+                print('WARNING, relu inputs is not mdarray ', x.rank, type(x.data))
         return ReLU()(x)

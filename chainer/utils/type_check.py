@@ -457,7 +457,6 @@ class Testable(object):
     def expect(self):
         raise NotImplementedError()
 
-
 class BoolBinaryOperator(BinaryOperator, Testable):
 
     def __init__(self, lhs, rhs, exp, inv, func):

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Sample script of word embedding model.
 
 This code implements skip-gram model and continuous-bow model.
@@ -9,6 +9,11 @@ import collections
 
 import numpy as np
 import six
+
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
 
 import chainer
 from chainer import cuda
@@ -32,6 +37,9 @@ parser.add_argument('--batchsize', '-b', type=int, default=1000,
                     help='learning minibatch size')
 parser.add_argument('--epoch', '-e', default=20, type=int,
                     help='number of epochs to learn')
+if tau_prof:
+    parser.add_argument('--iteration', '-i', default=20, type=int,
+                        help='number of iterations to learn')
 parser.add_argument('--model', '-m', choices=['skipgram', 'cbow'],
                     default='skipgram',
                     help='model type ("skipgram", "cbow")')
@@ -57,6 +65,8 @@ print('# unit: {}'.format(args.unit))
 print('Window: {}'.format(args.window))
 print('Minibatch-size: {}'.format(args.batchsize))
 print('# epoch: {}'.format(args.epoch))
+if tau_prof:
+    print('# iteration: {}'.format(args.iteration))
 print('Training model: {}'.format(args.model))
 print('Output type: {}'.format(args.out_type))
 print('')
@@ -220,7 +230,10 @@ train_iter = WindowIterator(train, args.window, args.batchsize)
 val_iter = WindowIterator(val, args.window, args.batchsize, repeat=False)
 updater = training.StandardUpdater(
     train_iter, optimizer, converter=convert, device=args.gpu)
-trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
+if tau_prof:
+    trainer = training.Trainer(updater, (args.iteration, 'iteration'), out=args.out)
+else:
+    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
 trainer.extend(extensions.Evaluator(
     val_iter, model, converter=convert, device=args.gpu))
@@ -229,6 +242,8 @@ trainer.extend(extensions.PrintReport(
     ['epoch', 'main/loss', 'validation/main/loss']))
 trainer.extend(extensions.ProgressBar())
 trainer.run()
+if tau_prof:
+    chainer.variable.show_prof()
 
 with open('word2vec.model', 'w') as f:
     f.write('%d %d\n' % (len(index2word), args.unit))

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Sample script of recurrent neural network language model.
 
 This code is ported from the following implementation written in Torch.
@@ -8,6 +8,11 @@ https://github.com/tomsercu/lstm
 from __future__ import division
 from __future__ import print_function
 import argparse
+
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
 
 import numpy as np
 
@@ -157,6 +162,9 @@ def main():
                              '(= length of truncated BPTT)')
     parser.add_argument('--epoch', '-e', type=int, default=39,
                         help='Number of sweeps over the dataset to train')
+    if tau_prof:
+        parser.add_argument('--iteration', '-i', type=int, default=30,
+                            help='Number of iterations to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
     parser.add_argument('--gradclip', '-c', type=float, default=5,
@@ -201,7 +209,10 @@ def main():
 
     # Set up a trainer
     updater = BPTTUpdater(train_iter, optimizer, args.bproplen, args.gpu)
-    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
+    if tau_prof:
+        trainer = training.Trainer(updater, (args.iteration, 'iteration'), out=args.out)
+    else:
+        trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
     eval_model = model.copy()  # Model with shared params and distinct states
     eval_rnn = eval_model.predictor
@@ -225,13 +236,18 @@ def main():
         chainer.serializers.load_npz(args.resume, trainer)
 
     trainer.run()
+    if tau_prof:
+        chainer.variable.show_prof()
 
     # Evaluate the final model
-    print('test')
-    eval_rnn.reset_state()
-    evaluator = extensions.Evaluator(test_iter, eval_model, device=args.gpu)
-    result = evaluator()
-    print('test perplexity:', np.exp(float(result['main/loss'])))
+    if tau_prof:
+        print("don't test")
+    else:
+        print('test')
+        eval_rnn.reset_state()
+        evaluator = extensions.Evaluator(test_iter, eval_model, device=args.gpu)
+        result = evaluator()
+        print('test perplexity:', np.exp(float(result['main/loss'])))
 
 
 if __name__ == '__main__':

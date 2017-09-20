@@ -1,8 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Chainer example: train a VAE on MNIST
 """
 from __future__ import print_function
 import argparse
+
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
 
 import matplotlib
 # Disable interactive backend
@@ -27,8 +32,12 @@ parser.add_argument('--resume', '-r', default='',
                     help='Resume the optimization from snapshot')
 parser.add_argument('--gpu', '-g', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
-parser.add_argument('--epoch', '-e', default=100, type=int,
-                    help='number of epochs to learn')
+if tau_prof:
+    parser.add_argument('--epoch', '-e', default=1, type=int,
+                        help='number of epochs to learn')
+else:
+    parser.add_argument('--epoch', '-e', default=100, type=int,
+                        help='number of epochs to learn')
 parser.add_argument('--dimz', '-z', default=20, type=int,
                     help='dimention of encoded vector')
 parser.add_argument('--batchsize', '-b', type=int, default=100,
@@ -121,6 +130,8 @@ for epoch in six.moves.range(1, n_epoch + 1):
             del model.loss
     print('test  mean loss={}, mean reconstruction loss={}'
           .format(sum_loss / N_test, sum_rec_loss / N_test))
+if tau_prof:
+    chainer.variable.show_prof()
 
 
 # Save the model and the optimizer

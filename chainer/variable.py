@@ -8,6 +8,11 @@ import weakref
 import numpy
 import six
 
+tau_prof=1
+if tau_prof:
+    import time
+    T = {}
+
 import chainer
 from chainer import cuda
 from chainer import initializers
@@ -661,6 +666,8 @@ Actual: {0}'''.format(type(data))
 
         while cand_funcs:
             _, _, func = heapq.heappop(cand_funcs)
+            if tau_prof:
+                t0 = time.time()
             outputs = [y() for y in func.outputs]  # access via weak ref
 
             in_data = tuple([x.data for x in func.inputs])
@@ -760,6 +767,18 @@ Actual: {0}'''.format(type(data))
             del gxs  # to reduce memory usage
             if initial_device is not None:
                 initial_device.use()
+            if tau_prof:
+                t1 = time.time()
+                ishp = tuple([ (None if x is None else x.shape) for x in in_data ])
+                oshp = tuple([ (None if x is None else x.shape) for x in out_grad ]) # OK?
+                #if isinstance(func, chainer.function.FunctionAdapter):
+                # key = "backward:%s:%s:%s" % (func._function.__class__.__name__, ishp, oshp)
+                # else:
+                key = "backward:%s:%s:%s" % (func.__class__.__name__, ishp, oshp)
+                if key not in T:
+                    T[key] = []
+                T[key].append(t1 - t0)
+
 
     def reshape(self, *shape):
         """Returns a variable of a different shape and the same content.
@@ -863,9 +882,19 @@ Actual: {0}'''.format(type(data))
         variable.
 
         """
+        if tau_prof:
+            t0 = time.time()
         if self.update_rule is not None:
             self.update_rule.update(self)
-
+        if tau_prof:
+            t1 = time.time()
+            shp = self.data.shape
+            key = "update:%s:%s:%s" % (self.update_rule.__class__.__name__, shp, shp)
+            if key not in T:
+                T[key] = []
+            T[key].append(t1 - t0)
+            # print("variable.py:1242:update(): " + str(self.update_rule))
+            
     def __lt__(self, other):
         raise NotImplementedError()
 
@@ -894,3 +923,16 @@ Actual: {0}'''.format(type(data))
         return super(Variable, self).__hash__()
 
     __array_priority__ = 200
+
+
+
+if tau_prof:
+    def show_prof():
+        print("")
+        total = 0
+        for k,vs in sorted(list(chainer.function.T.items()) + list(chainer.variable.T.items())):
+            s = sum(vs)
+            n = len(vs)
+            print("%.6f s / %6d = %8.3f us %30s" % (s, n, (s*1.0e6/n if n else 0.0), k))
+            total += s
+        print("total:\t%.6f s" % total)

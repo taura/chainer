@@ -1,6 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
+
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
 
 try:
     import matplotlib
@@ -38,7 +43,7 @@ def main():
     parser = argparse.ArgumentParser(description='Chainer example: MNIST')
     parser.add_argument('--batchsize', '-b', type=int, default=100,
                         help='Number of images in each mini-batch')
-    parser.add_argument('--epoch', '-e', type=int, default=20,
+    parser.add_argument('--epoch', '-e', type=int, default=1,
                         help='Number of sweeps over the dataset to train')
     parser.add_argument('--gpu', '-g', type=int, default=-1,
                         help='GPU ID (negative value indicates CPU)')
@@ -120,7 +125,8 @@ def main():
 
     # Run the training
     trainer.run()
-
+    if tau_prof:
+        chainer.variable.show_prof()
 
 if __name__ == '__main__':
     main()

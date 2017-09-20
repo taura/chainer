@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Sample script of recursive neural networks for sentiment analysis.
 
 This is Socher's simple recursive model, not RTNN:
@@ -15,6 +15,11 @@ import random
 import re
 import time
 
+tau_prof=1
+if tau_prof:
+    import sys
+    sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
+
 import numpy as np
 
 import chainer
@@ -29,6 +34,9 @@ parser.add_argument('--gpu', '-g', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
 parser.add_argument('--epoch', '-e', default=400, type=int,
                     help='number of epochs to learn')
+if tau_prof:
+    parser.add_argument('--iteration', '-i', default=30, type=int,
+                        help='number of iterations to learn')
 parser.add_argument('--unit', '-u', default=30, type=int,
                     help='number of units')
 parser.add_argument('--batchsize', '-b', type=int, default=25,
@@ -196,12 +204,21 @@ accum_loss = 0
 count = 0
 start_at = time.time()
 cur_at = start_at
+if tau_prof:
+    n_iters = 0
 for epoch in range(n_epoch):
+    if tau_prof:
+        if n_iters >= args.iteration:
+            break
     print('Epoch: {0:d}'.format(epoch))
     total_loss = 0
     cur_at = time.time()
     random.shuffle(train_trees)
     for tree in train_trees:
+        if tau_prof:
+            if n_iters >= args.iteration:
+                break
+            n_iters += 1
         loss, v = traverse(model, tree)
         accum_loss += loss
         count += 1
@@ -228,6 +245,11 @@ for epoch in range(n_epoch):
         print('Develop data evaluation:')
         evaluate(model, develop_trees)
         print('')
+if tau_prof:
+    chainer.variable.show_prof()
 
-print('Test evaluateion')
-evaluate(model, test_trees)
+if tau_prof:
+    print('No test evaluateion')
+else:
+    print('Test evaluateion')
+    evaluate(model, test_trees)

@@ -1,3 +1,5 @@
+tau_prof=1
+
 from chainer import function
 from chainer.utils import type_check
 
@@ -26,13 +28,22 @@ class LinearFunction(function.Function):
         type_check.expect(2 <= n_in, n_in <= 3)
         x_type, w_type = in_types[:2]
 
-        type_check.expect(
-            x_type.dtype.kind == 'f',
-            w_type.dtype.kind == 'f',
-            x_type.ndim >= 2,
-            w_type.ndim == 2,
-            type_check.prod(x_type.shape[1:]) == w_type.shape[1],
-        )
+        if tau_prof:
+            type_check.expect(
+                x_type.dtype.kind == 'f',
+                w_type.dtype.kind == 'f',
+                x_type.ndim >= 2,
+                w_type.ndim >= 2,
+                type_check.prod(x_type.shape[1:]) == w_type.shape[1],
+            )
+        else:
+            type_check.expect(
+                x_type.dtype.kind == 'f',
+                w_type.dtype.kind == 'f',
+                x_type.ndim >= 2,
+                w_type.ndim == 2,
+                type_check.prod(x_type.shape[1:]) == w_type.shape[1],
+            )
         if type_check.eval(n_in) == 3:
             b_type = in_types[2]
             type_check.expect(
@@ -56,7 +67,10 @@ class LinearFunction(function.Function):
         gy = grad_outputs[0]
 
         gx = gy.dot(W).astype(x.dtype, copy=False).reshape(inputs[0].shape)
-        gW = gy.T.dot(x).astype(W.dtype, copy=False)
+        if tau_prof:
+            gW = gy.T.dot(x).astype(W.dtype, copy=False).reshape(inputs[1].shape)
+        else:
+            gW = gy.T.dot(x).astype(W.dtype, copy=False)
         if len(inputs) == 3:
             gb = gy.sum(0)
             return gx, gW, gb
