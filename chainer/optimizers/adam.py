@@ -5,6 +5,9 @@ import numpy
 from chainer import cuda
 from chainer import optimizer
 
+tau_opt=1
+if tau_opt:
+    import _ctau
 
 _default_hyperparam = optimizer.Hyperparameter()
 _default_hyperparam.alpha = 0.001
@@ -50,6 +53,33 @@ class AdamRule(optimizer.UpdateRule):
             self.state['v'] = xp.zeros_like(param.data)
 
     def update_core_cpu(self, param):
+        if tau_opt:
+            return self.update_core_cpu_new(param)
+        else:
+            return self.update_core_cpu_org(param)
+
+    def update_core_cpu_new(self, param):
+        grad = param.grad       # 9999,100
+        if grad is None:
+            return
+        hp = self.hyperparam
+        m, v = self.state['m'], self.state['v'] # 9999,100
+        beta1 = hp.beta1
+        beta2 = hp.beta2
+        eps = hp.eps
+        lr = self.lr
+        data = param.data
+        assert(grad.shape == m.shape), (grad.shape, m.shape)
+        assert(grad.shape == v.shape), (grad.shape, v.shape)
+        assert(grad.shape == param.data.shape), (grad.shape, param.data.shape)
+        assert(grad.dtype == numpy.float32), grad.dtype
+        assert(m.dtype == numpy.float32), m.dtype
+        assert(v.dtype == numpy.float32), v.dtype
+        assert(data.dtype == numpy.float32), data.dtype
+        M,N = grad.shape
+        _ctau.adam_rule_update_core_cpu(grad, m, v, data, beta1, beta2, lr, eps, M, N)
+
+    def update_core_cpu_org(self, param):
         grad = param.grad
         if grad is None:
             return

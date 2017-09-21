@@ -6,6 +6,9 @@ from chainer import cuda
 from chainer import function
 from chainer.utils import type_check
 
+tau_opt=1
+if tau_opt:
+    import _ctau
 
 class EmbedIDFunction(function.Function):
 
@@ -44,6 +47,52 @@ class EmbedIDFunction(function.Function):
         return W.take(x, axis=0),
 
     def backward(self, inputs, grad_outputs):
+        if tau_opt:
+            return self.backward_new(inputs, grad_outputs)
+        else:
+            return self.backward_org(inputs, grad_outputs)
+
+    def backward_new(self, inputs, grad_outputs):
+        xp = cuda.get_array_module(*inputs)
+        x, W = inputs           # x: (1000,2), W: (10000, 100)
+        gy = grad_outputs[0]    # (1000, 2, 100)
+        gW = xp.zeros_like(W)   # (10000, 100)
+
+        if xp is numpy:
+            # It is equivalent to `numpy.add.at(gW, x, gy)` but ufunc.at is
+            # too slow.
+            # x.ravel()               : (2000,)
+            # gy.reshape(x.size, -1)  : (2000, 100)
+            M,N = x.shape
+            K,L = W.shape
+            assert(gy.shape == (M, N, L)), (gy.shape, x.shape, W.shape)
+            ignore_label = self.ignore_label
+            if ignore_label is None:
+                ignore_label = -1
+            _ctau.embed_id_function_backward(x, gW, gy, ignore_label,
+                                             M, N, K, L)
+        else:
+            if self.ignore_label is None:
+                cuda.elementwise(
+                    'T gy, int32 x, int32 n_out', 'raw T gW',
+                    'int w_ind[] = {x, i % n_out}; atomicAdd(&gW[w_ind], gy)',
+                    'embed_id_bwd')(
+                        gy, xp.expand_dims(x, -1), gW.shape[1], gW)
+            else:
+                cuda.elementwise(
+                    'T gy, int32 x, int32 n_out, int32 ignore', 'raw T gW',
+                    '''
+                    if (x != ignore) {
+                      int w_ind[] = {x, i % n_out};
+                      atomicAdd(&gW[w_ind], gy);
+                    }
+                    ''',
+                    'embed_id_bwd_ignore_label')(
+                        gy, xp.expand_dims(x, -1), gW.shape[1],
+                        self.ignore_label, gW)
+        return None, gW
+
+    def backward_org(self, inputs, grad_outputs):
         xp = cuda.get_array_module(*inputs)
         x, W = inputs
         gy = grad_outputs[0]
