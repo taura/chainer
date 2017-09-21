@@ -39,7 +39,7 @@ parser.add_argument('--batchsize', '-b', type=int, default=1000,
 parser.add_argument('--epoch', '-e', default=20, type=int,
                     help='number of epochs to learn')
 if tau_prof:
-    parser.add_argument('--iteration', '-i', default=20, type=int,
+    parser.add_argument('--iteration', '-i', default=200, type=int,
                         help='number of iterations to learn')
 parser.add_argument('--model', '-m', choices=['skipgram', 'cbow'],
                     default='skipgram',

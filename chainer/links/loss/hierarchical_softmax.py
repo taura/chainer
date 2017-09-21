@@ -157,7 +157,7 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         # _ctaumodule.c:ctau_binary_hierarchical_softmax_function_forward_cpu_wrap
         f = _ctau.binary_hierarchical_softmax_function_forward_cpu
         l = f(x, t, W, begins, paths, codes, M, N, P, bn, pn)
-        return numpy.array([l]),
+        return numpy.array(l),
         
     def forward_cpu_org(self, inputs):
         x, t, W = inputs
@@ -244,7 +244,6 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         assert(begins.dtype == numpy.int32), begins.dtype
         assert(paths.dtype == numpy.int32), paths.dtype
         assert(codes.dtype == numpy.float32), codes.dtype
-        gl = gloss[0]
         for i in range(M):
             it = t[i]           # scalar
             begin = begins[it] # scalar
@@ -253,7 +252,7 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
                 p = paths[k] # 1D array 1 elems
                 w = W[p]                  # 1D N
                 wxy = w.dot(x[i]) * codes[k] # scalar
-                g = -gl * codes[k] / (1.0 + numpy.exp(wxy)) # scalar
+                g = -gloss * codes[k] / (1.0 + numpy.exp(wxy)) # scalar
                 gW[p] += g * x[i] # 1D N
                 gx[i] += g * w    # 1D N
         return gx, None, gW
@@ -279,10 +278,9 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         assert(begins.dtype == numpy.int32), begins.dtype
         assert(paths.dtype == numpy.int32), paths.dtype
         assert(codes.dtype == numpy.float32), codes.dtype
-        gl = gloss[0]
         # _ctaumodule.c:ctau_binary_hierarchical_softmax_function_backward_cpu_wrap
         f = _ctau.binary_hierarchical_softmax_function_backward_cpu
-        f(x, t, W, gx, gW, begins, paths, codes, gl, M, N, P, bn, pn)
+        f(x, t, W, gx, gW, begins, paths, codes, gloss, M, N, P, bn, pn)
         return gx, None, gW
     
     def backward_cpu_org(self, inputs, grad_outputs):
