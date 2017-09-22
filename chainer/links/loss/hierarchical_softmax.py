@@ -129,14 +129,40 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
     def forward_cpu(self, inputs):
         if tau_opt:
             n = self.forward_cpu_new(inputs)
-            #o = self.forward_cpu_org(inputs)
-            #err = abs((n[0] - o[0]) / o[0])
-            #assert(err < 1.0e-4), (err, o, n)
+            o = self.forward_cpu_org(inputs)
+            err = abs((n[0] - o[0]) / o[0])
+            assert(err < 1.0e-4), (err, o, n)
             return n
         else:
             return self.forward_cpu_org(inputs)
         
     def forward_cpu_new(self, inputs):
+        x, t, W = inputs
+        begins = self.begins
+        paths = self.paths
+        codes = self.codes
+        M,N = x.shape
+        P,_ = W.shape
+        bn, = begins.shape
+        pn, = paths.shape
+        assert(t.shape == (M,)), (t.shape, x.shape)
+        assert(W.shape == (P,N)), (W.shape, x.shape)
+        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(x.dtype == numpy.float32), x.dtype
+        assert(t.dtype == numpy.int32), t.dtype
+        assert(W.dtype == numpy.float32), W.dtype
+        assert(begins.dtype == numpy.int32), begins.dtype
+        assert(paths.dtype == numpy.int32), paths.dtype
+        assert(codes.dtype == numpy.float32), codes.dtype
+        max_length = _ctau.binary_hierarchical_softmax_function_max_length(t, M, begins)
+        ls = numpy.zeros((M, length), dtype=numpy.float32)
+        wxy = numpy.zeros_like(ls)
+        f = _ctau.binary_hierarchical_softmax_function_forward_cpu
+        l = f(x, t, W, begins, paths, codes, wxy, M, N, P, bn, pn, max_length)
+        self.wxy = wxy
+        return ls.sum(),
+
+    def xxx_forward_cpu_new_xxx(self, inputs):
         x, t, W = inputs
         begins = self.begins
         paths = self.paths
@@ -179,27 +205,30 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
     def backward_cpu(self, inputs, grad_outputs):
         if tau_opt:
             gx_n,none_n,gW_n = self.backward_cpu_new(inputs, grad_outputs)
-            #gx_o,none_o,gW_o = self.backward_cpu_org(inputs, grad_outputs)
-            #x_err = ((gx_n - gx_o)**2).sum()
-            #assert(x_err <= 1.0e-10 * (gx_o**2).sum()), x_err
-            #W_err = ((gW_n - gW_o)**2).sum()
-            #assert(W_err <= 1.0e-10 * (gW_o**2).sum()), W_err
+            if 0:
+                gx_o,none_o,gW_o = self.backward_cpu_org(inputs, grad_outputs)
+                x_err = ((gx_n - gx_o)**2).sum()
+                assert(x_err <= 1.0e-10 * (gx_o**2).sum()), x_err
+                W_err = ((gW_n - gW_o)**2).sum()
+                assert(W_err <= 1.0e-10 * (gW_o**2).sum()), W_err
             return gx_n,none_n,gW_n
         else:
             return self.backward_cpu_org(inputs, grad_outputs)
 
-    def backward_cpu_new_(self, inputs, grad_outputs):
+    def xxx_backward_cpu_new_xxx(self, inputs, grad_outputs):
         x, t, W = inputs
         gloss, = grad_outputs
         begins = self.begins
         paths = self.paths
         codes = self.codes
+        wxy = self.wxy
         gx = numpy.empty_like(x)
         gW = numpy.zeros_like(W)
         M,N = x.shape
         P,_ = W.shape
         bn, = begins.shape
         pn, = paths.shape
+        _,max_length = wxy.shape
         assert(t.shape == (M,)), (t.shape, x.shape)
         assert(W.shape == (P,N)), (W.shape, x.shape)
         assert(codes.shape == (pn,)), (codes.shape, paths.shape)
@@ -223,7 +252,7 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
             gx[i] = gx_         # 1D N
         return gx, None, gW
 
-    def backward_cpu_new_(self, inputs, grad_outputs):
+    def xxx_backward_cpu_new_xxx(self, inputs, grad_outputs):
         x, t, W = inputs
         gloss, = grad_outputs
         begins = self.begins
@@ -263,15 +292,26 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         begins = self.begins
         paths = self.paths
         codes = self.codes
+        wxy = self.wxy
         gx = numpy.zeros_like(x)
         gW = numpy.zeros_like(W)
         M,N = x.shape
         P,_ = W.shape
         bn, = begins.shape
         pn, = paths.shape
+        _,ml = wxy.shape
+        if 0:
+            hist = {}
+            for p in paths:
+                hist[p] = hist.get(p, 0) + 1
+            print("paths:")
+            for p,c in sorted(hist.items()):
+                print(p,c)
+        
         assert(t.shape == (M,)), (t.shape, x.shape)
         assert(W.shape == (P,N)), (W.shape, x.shape)
         assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+        assert(wxy.shape == (M, ml)), (wxy.shape, x.shape)
         assert(x.dtype == numpy.float32), x.dtype
         assert(t.dtype == numpy.int32), t.dtype
         assert(W.dtype == numpy.float32), W.dtype
@@ -280,7 +320,7 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         assert(codes.dtype == numpy.float32), codes.dtype
         # _ctaumodule.c:ctau_binary_hierarchical_softmax_function_backward_cpu_wrap
         f = _ctau.binary_hierarchical_softmax_function_backward_cpu
-        f(x, t, W, gx, gW, begins, paths, codes, gloss, M, N, P, bn, pn)
+        f(x, t, W, gx, gW, begins, paths, codes, wxy, gloss, M, N, P, bn, pn, ml)
         return gx, None, gW
     
     def backward_cpu_org(self, inputs, grad_outputs):
