@@ -8,7 +8,9 @@ from chainer.utils import type_check
 
 tau_opt=1
 if tau_opt:
-    import _ctau
+    import chopt
+    from chopt import c_long,c_int,a_int,a_int2d,a_float,a_float2d,a_float3d
+    import os
 
 class EmbedIDFunction(function.Function):
 
@@ -48,7 +50,12 @@ class EmbedIDFunction(function.Function):
 
     def backward(self, inputs, grad_outputs):
         if tau_opt:
-            return self.backward_new(inputs, grad_outputs)
+            none_n,gW_n = self.backward_new(inputs, grad_outputs)
+            if 0:
+                none_o,gW_o = self.backward_org(inputs, grad_outputs)
+                err = ((gW_n - gW_o)**2).sum()
+                assert(err <= 1.0e-10 * (gW_o**2).sum()), err
+            return none_n,gW_n
         else:
             return self.backward_org(inputs, grad_outputs)
 
@@ -69,8 +76,10 @@ class EmbedIDFunction(function.Function):
             ignore_label = self.ignore_label
             if ignore_label is None:
                 ignore_label = -1
-            _ctau.embed_id_function_backward(x, gW, gy, ignore_label,
-                                             M, N, K, L)
+            backward = chopt.make_fun("backward", "libembed_id_c.so",
+                                      [c_long]*5 + [a_int2d,a_float2d,a_float3d],
+                                      c_int)
+            backward(M, N, K, L, ignore_label, x, gW, gy)
         else:
             if self.ignore_label is None:
                 cuda.elementwise(

@@ -7,7 +7,10 @@ from chainer import optimizer
 
 tau_opt=1
 if tau_opt:
-    import _ctau
+    import os
+    import chopt
+    from chopt import c_long,c_int,c_float,a_int,a_float,a_float2d
+    tau_chk=0
 
 _default_hyperparam = optimizer.Hyperparameter()
 _default_hyperparam.alpha = 0.001
@@ -54,21 +57,33 @@ class AdamRule(optimizer.UpdateRule):
 
     def update_core_cpu(self, param):
         if tau_opt:
-            return self.update_core_cpu_new(param)
+            m,v,data = self.update_core_cpu_new(param)
+            if tau_chk:
+                self.update_core_cpu_org(param)
+                chopt.check_array_error(m, self.state['m'])
+                chopt.check_array_error(v, self.state['v'])
+                chopt.check_array_error(data, param.data)
+                self.state['m'][...] = m
+                self.state['v'][...] = v
+                param.data[...] = data
         else:
-            return self.update_core_cpu_org(param)
+            self.update_core_cpu_org(param)
 
     def update_core_cpu_new(self, param):
         grad = param.grad       # 9999,100
-        if grad is None:
-            return
-        hp = self.hyperparam
         m, v = self.state['m'], self.state['v'] # 9999,100
+        data = param.data
+        if grad is None:
+            return m,v,data
+        if tau_chk:
+            m = m.copy()
+            v = v.copy()
+            data = data.copy()
+        hp = self.hyperparam
         beta1 = hp.beta1
         beta2 = hp.beta2
         eps = hp.eps
         lr = self.lr
-        data = param.data
         assert(grad.shape == m.shape), (grad.shape, m.shape)
         assert(grad.shape == v.shape), (grad.shape, v.shape)
         assert(grad.shape == param.data.shape), (grad.shape, param.data.shape)
@@ -77,7 +92,11 @@ class AdamRule(optimizer.UpdateRule):
         assert(v.dtype == numpy.float32), v.dtype
         assert(data.dtype == numpy.float32), data.dtype
         M,N = grad.shape
-        _ctau.adam_rule_update_core_cpu(grad, m, v, data, beta1, beta2, lr, eps, M, N)
+        update = chopt.make_fun("update", "libadam_c.so",
+                                [c_long]*2 + [c_float]*4 + [a_float2d]*4,
+                                c_int)
+        update(M, N, beta1, beta2, lr, eps, grad, m, v, data)
+        return m,v,data
 
     def update_core_cpu_org(self, param):
         grad = param.grad
