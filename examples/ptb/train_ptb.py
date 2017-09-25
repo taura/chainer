@@ -178,6 +178,9 @@ def main():
     parser.set_defaults(test=False)
     parser.add_argument('--unit', '-u', type=int, default=650,
                         help='Number of LSTM units in each layer')
+    if tau_prof:
+        parser.add_argument('--seed', '-s', default=918729, type=int,
+                            help='random seed')
     args = parser.parse_args()
 
     # Load the Penn Tree Bank long word sequence dataset
@@ -202,6 +205,9 @@ def main():
         chainer.cuda.get_device(args.gpu).use()  # make the GPU current
         model.to_gpu()
 
+    if tau_prof:
+        np.random.seed(args.seed)
+        
     # Set up an optimizer
     optimizer = chainer.optimizers.SGD(lr=1.0)
     optimizer.setup(model)

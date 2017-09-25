@@ -14,6 +14,7 @@ if tau_opt:
     from chopt import c_long,c_int,c_float,c_double,a_int,a_float,a_float2d
     import os
     import pdb
+    # tau_ok = int(os.environ["OK"])
 
 class TreeParser(object):
 
@@ -100,17 +101,25 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
 
         self.parser_size = parser.size()
 
-        max_length = chopt.make_fun("max_length",
+        if tau_opt:
+            max_length = chopt.make_fun("max_length",
                                         "libhierarchical_softmax_c.so",
                                         [c_long, c_long, a_int, a_int, c_int], c_int)
-        forward = chopt.make_fun("forward", 
-                                 "libhierarchical_softmax_c.so",
-                                 [c_long]*6 + [a_float2d, a_int, a_float2d,
-                                               a_int, a_int, a_float,
-                                               a_float2d],
-                                 c_float)
-        self.fun_max_length = max_length
-        self.fun_forward = forward
+            forward = chopt.make_fun("forward", 
+                                     "libhierarchical_softmax_c.so",
+                                     [c_long]*6 + [a_float2d, a_int, a_float2d,
+                                                   a_int, a_int, a_float,
+                                                   a_float2d],
+                                     c_float)
+            backward = chopt.make_fun("backward", "libhierarchical_softmax_c.so",
+                                      [c_long]*6 + [c_float, a_float2d, a_int,
+                                                    a_float2d, a_float2d, a_float2d,
+                                                    a_int, a_int, a_float,
+                                                    a_float2d ],
+                                      c_int)
+            self.fun_max_length = max_length
+            self.fun_forward = forward
+            self.fun_backward = backward
         
     def check_type_forward(self, in_types):
         type_check.expect(in_types.size() == 3)
@@ -258,7 +267,8 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
             gW[path] += gw
         return gx, None, gW
 
-    def x_backward_cpu_new(self, inputs, grad_outputs):
+    # OK
+    def ok_backward_cpu_new(self, inputs, grad_outputs):
         x, t, W = inputs
         M,N = x.shape
         P,_ = W.shape
@@ -271,17 +281,31 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
             begin = self.begins[it]
             end = self.begins[it + 1]
             assert(self.wxy.shape[1] >= end - begin), (self.wxy.shape, begin, end)
+            # print("i: %d, it: %d, begin: %d, end: %d" % (i, it, begin, end))
             for o,k in enumerate(range(begin, end)):
                 p = self.paths[k]
                 w = W[p]        # N
                 wxy_ = w.dot(ix) * self.codes[k]
                 wxy = self.wxy[i,o]
                 chopt.check_scal_error(wxy, wxy_)
-                g = -gloss * self.codes[k] / (1.0 + numpy.exp(wxy))
-                gx[i] += g * w  # N
-                gW[p] += g * ix # N
+                g = (-gloss * self.codes[k]) / (1.0 + numpy.exp(wxy))
+                for j in range(N):
+                    if j % (N // 10) == -1:
+                        print("gl: %.18f" % gloss)
+                        print("codes[%d]: %.18f" % (k, self.codes[k]))
+                        print("-gl * codes[%d]: %.18f" % (k, (-gloss * self.codes[k])))
+                        print("wxy_c: %.18f" % wxy)
+                        print("expf(wxy_c): %.18f" % numpy.exp(wxy))
+                        print("1.0 + expf(wxy_c): %.18f" % (1.0 + numpy.exp(wxy)))
+                        print("(-gl * codes[k]) / (1.0 + expf(wxy_c)): %.18f" % ((-gloss * self.codes[k]) / (1.0 + numpy.exp(wxy))))
+                        print("g: %.18f" % g)
+                        print("gx[%d,%d] (%.18f) += %.18f * W[%d,%d] (%.18f)" % (i, j, gx[i,j], g, p, j, W[p,j]))
+                        print("gW[%d,%d] (%.18f) += %.18f * x[%d,%d] (%.18f)" % (p, j, gW[i,j], g, i, j, x[i,j]))
+                    gx[i,j] += g * W[p,j]  # N
+                    gW[p,j] += g * x[i,j] # N
         return gx, None, gW
 
+    # NG
     def backward_cpu_new(self, inputs, grad_outputs):
         x, t, W = inputs
         gloss, = grad_outputs
@@ -296,24 +320,25 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         bn, = begins.shape
         pn, = paths.shape
         _,ml = wxy.shape
-        assert(t.shape == (M,)), (t.shape, x.shape)
-        assert(W.shape == (P,N)), (W.shape, x.shape)
-        assert(codes.shape == (pn,)), (codes.shape, paths.shape)
-        assert(wxy.shape == (M, ml)), (wxy.shape, x.shape)
-        assert(x.dtype == numpy.float32), x.dtype
-        assert(t.dtype == numpy.int32), t.dtype
-        assert(W.dtype == numpy.float32), W.dtype
-        assert(begins.dtype == numpy.int32), begins.dtype
-        assert(paths.dtype == numpy.int32), paths.dtype
-        assert(codes.dtype == numpy.float32), codes.dtype
-        backward = chopt.make_fun("backward", "libhierarchical_softmax_c.so",
-                                  [c_long]*6 + [c_float, a_float2d, a_int,
-                                                a_float2d, a_float2d, a_float2d,
-                                                a_int, a_int, a_float,
-                                                a_float2d ],
-                                  c_int)
-        backward(M, N, P, bn, pn, ml, gloss,
-                 x, t, W, gx, gW, begins, paths, codes, wxy)
+        if 0:
+            assert(t.shape == (M,)), (t.shape, x.shape)
+            assert(W.shape == (P,N)), (W.shape, x.shape)
+            assert(codes.shape == (pn,)), (codes.shape, paths.shape)
+            assert(wxy.shape == (M, ml)), (wxy.shape, x.shape)
+            assert(x.dtype == numpy.float32), x.dtype
+            assert(t.dtype == numpy.int32), t.dtype
+            assert(W.dtype == numpy.float32), W.dtype
+            assert(begins.dtype == numpy.int32), begins.dtype
+            assert(paths.dtype == numpy.int32), paths.dtype
+            assert(codes.dtype == numpy.float32), codes.dtype
+            backward = chopt.make_fun("backward", "libhierarchical_softmax_c.so",
+                                      [c_long]*6 + [c_float, a_float2d, a_int,
+                                                    a_float2d, a_float2d, a_float2d,
+                                                    a_int, a_int, a_float,
+                                                    a_float2d ],
+                                      c_int)
+        self.fun_backward(M, N, P, bn, pn, ml, gloss,
+                          x, t, W, gx, gW, begins, paths, codes, wxy)
         return gx, None, gW
     
     def backward_cpu_org(self, inputs, grad_outputs):

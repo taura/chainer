@@ -44,7 +44,13 @@ parser.add_argument('--batchsize', '-b', type=int, default=100,
                     help='learning minibatch size')
 parser.add_argument('--test', action='store_true',
                     help='Use tiny datasets for quick tests')
+if tau_prof:
+    parser.add_argument('--seed', '-s', default=918729, type=int,
+                        help='random seed')
 args = parser.parse_args()
+
+if tau_prof:
+    np.random.seed(args.seed)
 
 batchsize = args.batchsize
 n_epoch = args.epoch

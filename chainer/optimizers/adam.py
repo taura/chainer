@@ -48,7 +48,12 @@ class AdamRule(optimizer.UpdateRule):
             self.hyperparam.beta2 = beta2
         if eps is not None:
             self.hyperparam.eps = eps
-
+        if tau_opt:
+            update = chopt.make_fun("update", "libadam_c.so",
+                                    [c_long]*2 + [c_float]*4 + [a_float2d]*4,
+                                    c_int)
+            self.fun_update = update
+            
     def init_state(self, param):
         xp = cuda.get_array_module(param.data)
         with cuda.get_device(param.data):
@@ -84,18 +89,19 @@ class AdamRule(optimizer.UpdateRule):
         beta2 = hp.beta2
         eps = hp.eps
         lr = self.lr
-        assert(grad.shape == m.shape), (grad.shape, m.shape)
-        assert(grad.shape == v.shape), (grad.shape, v.shape)
-        assert(grad.shape == param.data.shape), (grad.shape, param.data.shape)
-        assert(grad.dtype == numpy.float32), grad.dtype
-        assert(m.dtype == numpy.float32), m.dtype
-        assert(v.dtype == numpy.float32), v.dtype
-        assert(data.dtype == numpy.float32), data.dtype
         M,N = grad.shape
-        update = chopt.make_fun("update", "libadam_c.so",
-                                [c_long]*2 + [c_float]*4 + [a_float2d]*4,
-                                c_int)
-        update(M, N, beta1, beta2, lr, eps, grad, m, v, data)
+        if 0:
+            assert(grad.shape == m.shape), (grad.shape, m.shape)
+            assert(grad.shape == v.shape), (grad.shape, v.shape)
+            assert(grad.shape == param.data.shape), (grad.shape, param.data.shape)
+            assert(grad.dtype == numpy.float32), grad.dtype
+            assert(m.dtype == numpy.float32), m.dtype
+            assert(v.dtype == numpy.float32), v.dtype
+            assert(data.dtype == numpy.float32), data.dtype
+            update = chopt.make_fun("update", "libadam_c.so",
+                                    [c_long]*2 + [c_float]*4 + [a_float2d]*4,
+                                    c_int)
+        self.fun_update(M, N, beta1, beta2, lr, eps, numpy.array(grad, copy=False), m, v, data)
         return m,v,data
 
     def update_core_cpu_org(self, param):

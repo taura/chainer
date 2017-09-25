@@ -8,10 +8,12 @@ cflags += -DNDEBUG
 cflags += -O3
 cflags += -march=native
 cflags += -fopenmp-simd
+cflags += -fopenmp
 cflags += -ffast-math
 cflags += -std=gnu99
 cflags += -fopt-info-vec-optimized
 #cflags += -fopt-info-vec-missed
+
 
 all : $(lib_so) $(src_s)
 

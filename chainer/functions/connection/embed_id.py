@@ -16,6 +16,11 @@ class EmbedIDFunction(function.Function):
 
     def __init__(self, ignore_label=None):
         self.ignore_label = ignore_label
+        if tau_opt:
+            backward = chopt.make_fun("backward", "libembed_id_c.so",
+                                      [c_long]*5 + [a_int2d,a_float2d,a_float3d],
+                                      c_int)
+            self.fun_backward = backward
 
     def check_type_forward(self, in_types):
         type_check.expect(in_types.size() == 2)
@@ -72,14 +77,15 @@ class EmbedIDFunction(function.Function):
             # gy.reshape(x.size, -1)  : (2000, 100)
             M,N = x.shape
             K,L = W.shape
-            assert(gy.shape == (M, N, L)), (gy.shape, x.shape, W.shape)
             ignore_label = self.ignore_label
             if ignore_label is None:
                 ignore_label = -1
-            backward = chopt.make_fun("backward", "libembed_id_c.so",
-                                      [c_long]*5 + [a_int2d,a_float2d,a_float3d],
-                                      c_int)
-            backward(M, N, K, L, ignore_label, x, gW, gy)
+            if 0:
+                assert(gy.shape == (M, N, L)), (gy.shape, x.shape, W.shape)
+                backward = chopt.make_fun("backward", "libembed_id_c.so",
+                                          [c_long]*5 + [a_int2d,a_float2d,a_float3d],
+                                          c_int)
+            self.fun_backward(M, N, K, L, ignore_label, x, gW, gy)
         else:
             if self.ignore_label is None:
                 cuda.elementwise(

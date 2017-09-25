@@ -35,7 +35,13 @@ def main():
                         help='Directory to output the result')
     parser.add_argument('--resume', '-r', default='',
                         help='Resume the training from snapshot')
+    if tau_prof:
+        parser.add_argument('--seed', '-s', default=918729, type=int,
+                            help='random seed')
     args = parser.parse_args()
+    if tau_prof:
+        import numpy
+        numpy.random.seed(args.seed)
 
     print('GPU: {}'.format(args.gpu))
     print('# Minibatch-size: {}'.format(args.batchsize))

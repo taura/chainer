@@ -6,6 +6,7 @@ tau_prof=1
 if tau_prof:
     import sys
     sys.path.insert(0, "/home/tau/sproj/chainer_ex/intel_chainer_inst/lib/python3.5/site-packages")
+    import pdb
 
 try:
     import matplotlib
@@ -53,8 +54,14 @@ def main():
                         help='Resume the training from snapshot')
     parser.add_argument('--unit', '-u', type=int, default=1000,
                         help='Number of units')
+    if tau_prof:
+        parser.add_argument('--seed', '-s', default=918729, type=int,
+                            help='random seed')
     args = parser.parse_args()
-
+    if tau_prof:
+        import numpy
+        numpy.random.seed(args.seed)
+        
     print('GPU: {}'.format(args.gpu))
     print('# unit: {}'.format(args.unit))
     print('# Minibatch-size: {}'.format(args.batchsize))

@@ -46,8 +46,14 @@ parser.add_argument('--label', '-l', type=int, default=5,
 parser.add_argument('--epocheval', '-p', type=int, default=5,
                     help='number of epochs per evaluation')
 parser.add_argument('--test', dest='test', action='store_true')
+if tau_prof:
+    parser.add_argument('--seed', '-s', default=918729, type=int,
+                        help='random seed')
 parser.set_defaults(test=False)
 args = parser.parse_args()
+if tau_prof:
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 if args.gpu >= 0:
     cuda.check_cuda_available()
 xp = cuda.cupy if args.gpu >= 0 else np

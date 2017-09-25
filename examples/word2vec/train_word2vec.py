@@ -258,3 +258,5 @@ with open('word2vec.model', 'w') as f:
     for i, wi in enumerate(w):
         v = ' '.join(map(str, wi))
         f.write('%s %s\n' % (index2word[i], v))
+
+sys.exit(0)
