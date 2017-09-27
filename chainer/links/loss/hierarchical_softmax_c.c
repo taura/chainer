@@ -96,7 +96,7 @@ static void check_scal_error(float x, float c) {
 }
 #endif
 
-#define REC_BACKWARD 1
+#define REC_BACKWARD 0
 #if REC_BACKWARD
 typedef long long tsc_t;
 
@@ -222,7 +222,9 @@ int backward(long M, long N, long P, long bn, long pn, long ml, double gl,
     RR->count_p = 0;
 #endif
     calc_p_assignment(nw, M, P, bn, pn, t, begins, paths, assign);
+#if REC_BACKWARD
     RR->t[2] = _rdtsc();
+#endif
     for (long i = 0; i < M; i++) {
       int my_i = (rk * M  <= i * nw) && (i * nw < ((rk + 1) * M));
       int it = t[i];
