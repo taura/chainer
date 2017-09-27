@@ -190,6 +190,7 @@ class BinaryHierarchicalSoftmaxFunction(function.Function):
         wxy = numpy.zeros((M, ml), dtype=numpy.float32)
         loss = self.fun_forward(M, N, P, bn, pn, ml, x, t, W, begins, paths, codes, wxy)
         self.wxy = wxy
+        self.extra_inputs = [ begins, paths, codes, wxy ]
         return numpy.array(loss),
 
     def xx_forward_cpu_new(self, inputs):

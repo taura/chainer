@@ -19,6 +19,9 @@ tau_prof=1
 if tau_prof:
     import time
     T = {}
+tau_dump=0
+if tau_dump:
+    D = set()
 
 def no_backprop_mode():
     """Make a context manager which disables back-propagation.
@@ -180,14 +183,14 @@ class Function(object):
             :class:`Variable` objects.
 
         """
-        if tau_prof:
-            t0 = time.time()
-        
         inputs = [x if isinstance(x, variable.Variable)
                   else variable.Variable(x)
                   for x in inputs]
 
         in_data = tuple([x.data for x in inputs])
+        if tau_prof:
+            t0 = time.time()
+        
         if chainer.is_debug():
             self._stack = traceback.extract_stack()
 
@@ -261,13 +264,15 @@ class Function(object):
             t1 = time.time()
             ishp = tuple([ (None if x is None else x.shape) for x in in_data ])
             oshp = tuple([ (None if x is None else x.shape) for x in outputs ])
-            # if isinstance(self, chainer.function.FunctionAdapter):
-            # key = "forward:%s:%s:%s" % (self._function.__class__.__name__, ishp, oshp)
-            # else:
             key = "forward:%s:%s:%s" % (self.__class__.__name__, ishp, oshp)
             if key not in T:
                 T[key] = []
             T[key].append(t1 - t0)
+            if tau_dump:
+                if key not in D:
+                    for i,datum in enumerate(in_data):
+                        np.save(("npy/%s.%d.npy" % (key, i)), datum)
+                    D.add(key)
 
         if len(ret) == 1:
             return ret[0]

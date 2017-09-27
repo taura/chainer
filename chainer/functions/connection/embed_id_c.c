@@ -18,19 +18,23 @@ static void calc_load_balance(long M, long N, long K, long L, long ignore_label,
       assign[ix]++;
     }
   }
-  int total = 0;
-  for (long i = 0; i < K; i++) {
-    total += assign[i];
-  }
-  int ps = 0;
-  for (long i = 0; i < K; i++) {
-    int c = assign[i];
-    int w = (ps * nw) / total;
-    assert(0 <= w);
-    assert(w <= nw);
-    if (w == nw) assert(c == 0);
-    assign[i] = w;
-    ps += c;
+#pragma omp single
+  {
+    int total = 0;
+    for (long i = 0; i < K; i++) {
+      total += assign[i];
+    }
+    int ps = 0;
+    for (long i = 0; i < K; i++) {
+      assert(ps <= total);
+      int c = assign[i];
+      int w = (ps * nw) / total;
+      assert(0 <= w);
+      assert(w <= nw);
+      if (w == nw) assert(c == 0);
+      assign[i] = w;
+      ps += c;
+    }
   }
 }
 

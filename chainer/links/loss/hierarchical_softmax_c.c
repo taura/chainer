@@ -96,7 +96,7 @@ static void check_scal_error(float x, float c) {
 }
 #endif
 
-#define REC_BACKWARD 0
+#define REC_BACKWARD 1
 #if REC_BACKWARD
 typedef long long tsc_t;
 
@@ -169,7 +169,7 @@ void calc_p_assignment(int nw, long M, long P, long bn, long pn,
       assign[p]++;
     }
   }
-#pragma omp master
+#pragma omp single
   {
     int total = 0;
     int nz = 0;
@@ -197,7 +197,7 @@ void calc_p_assignment(int nw, long M, long P, long bn, long pn,
   }
 }
 
-int backward(long M, long N, long P, long bn, long pn, long ml, float gl,
+int backward(long M, long N, long P, long bn, long pn, long ml, double gl,
 	      float x[restrict M][N], int t[restrict M], float W[restrict P][N],
 	      float gx[restrict M][N], float gW[restrict P][N], 
 	      int begins[restrict bn], int paths[restrict pn],
@@ -222,7 +222,7 @@ int backward(long M, long N, long P, long bn, long pn, long ml, float gl,
     RR->count_p = 0;
 #endif
     calc_p_assignment(nw, M, P, bn, pn, t, begins, paths, assign);
-
+    RR->t[2] = _rdtsc();
     for (long i = 0; i < M; i++) {
       int my_i = (rk * M  <= i * nw) && (i * nw < ((rk + 1) * M));
       int it = t[i];
@@ -254,17 +254,22 @@ int backward(long M, long N, long P, long bn, long pn, long ml, float gl,
       }
     }
 #if REC_BACKWARD
-    RR->t[2] = _rdtsc();
+    RR->t[3] = _rdtsc();
 #endif
   }
 #if REC_BACKWARD
-  R[0].t[3] = _rdtsc();
+  R[0].t[4] = _rdtsc();
   {
     tsc_t start_t = R[0].t[0];
-    tsc_t end_t = R[0].t[3];
+    tsc_t end_t = R[0].t[4];
     for (int i = 0; i < max_nw; i++) {
-      printf("[%3d]: %lld %lld i=%ld p=%ld\n",
-	    i, R[i].t[1] - start_t, R[i].t[2] - start_t, R[i].count_i, R[i].count_p);
+      printf("[%3d]: %lld %lld %lld i=%ld p=%ld\n",
+             i,
+             R[i].t[1] - start_t,
+             R[i].t[2] - start_t,
+             R[i].t[3] - start_t,
+             R[i].count_i,
+             R[i].count_p);
     }
     printf("end: %lld\n", end_t - start_t);
   }

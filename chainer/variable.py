@@ -12,6 +12,9 @@ tau_prof=1
 if tau_prof:
     import time
     T = {}
+tau_dump=0
+if tau_dump:
+    D = set()
 
 import chainer
 from chainer import cuda
@@ -769,15 +772,21 @@ Actual: {0}'''.format(type(data))
                 initial_device.use()
             if tau_prof:
                 t1 = time.time()
+                if hasattr(func, "extra_inputs"):
+                    extra_in_data = tuple([ x.data for x in func.extra_inputs ])
+                else:
+                    extra_in_data = ()
                 ishp = tuple([ (None if x is None else x.shape) for x in in_data ])
                 oshp = tuple([ (None if x is None else x.shape) for x in out_grad ]) # OK?
-                #if isinstance(func, chainer.function.FunctionAdapter):
-                # key = "backward:%s:%s:%s" % (func._function.__class__.__name__, ishp, oshp)
-                # else:
                 key = "backward:%s:%s:%s" % (func.__class__.__name__, ishp, oshp)
                 if key not in T:
                     T[key] = []
                 T[key].append(t1 - t0)
+                if tau_dump:
+                    if key not in D:
+                        for i,datum in enumerate(in_data + out_grad + extra_in_data):
+                            numpy.save(("npy/%s.%d.npy" % (key, i)), datum)
+                        D.add(key)
 
 
     def reshape(self, *shape):
@@ -883,13 +892,17 @@ Actual: {0}'''.format(type(data))
 
         """
         if tau_prof:
+            shp = self.data.shape
+            key = "update:%s:%s:%s" % (self.update_rule.__class__.__name__, shp, shp)
+            if tau_dump:
+                if key not in D:
+                    numpy.save(("npy/%s.%d.npy" % (key, 0)), self.data)
+                    D.add(key)
             t0 = time.time()
         if self.update_rule is not None:
             self.update_rule.update(self)
         if tau_prof:
             t1 = time.time()
-            shp = self.data.shape
-            key = "update:%s:%s:%s" % (self.update_rule.__class__.__name__, shp, shp)
             if key not in T:
                 T[key] = []
             T[key].append(t1 - t0)
